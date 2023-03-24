@@ -11,6 +11,7 @@ package xls2txt
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -66,6 +67,36 @@ func XLS2Text(reader io.ReadSeeker, writer io.Writer, size int64) (written int64
 	return written, nil
 }
 
+// XLS2CSV converts selected sheet of the XLS file into CSV format.
+func XLS2CSV(reader io.ReadSeeker, sheetNumber int) ([]byte, error) {
+	xlFile, err := xls.OpenReader(reader, "utf-8")
+	if err != nil || xlFile == nil {
+		return nil, err
+	}
+
+	sheet := xlFile.GetSheet(sheetNumber)
+	if nil == sheet {
+		return nil, errors.New("sheet doesn't exist")
+	}
+
+	rows := make([]string, 0)
+	for ii := 0; ii < int(sheet.MaxRow); ii++ {
+		row := sheet.Row(ii)
+		if row == nil {
+			continue
+		}
+
+		columns := make([]string, 0)
+		for jj := row.FirstCol(); jj < row.LastCol(); jj++ {
+			columns = append(columns, WrapCSVCell(row.Col(jj)))
+		}
+
+		rows = append(rows, strings.Join(columns, ","))
+	}
+
+	return []byte(strings.Join(rows, "\n")), nil
+}
+
 // cleanCell returns a cleaned cell text without new-lines
 func cleanCell(text string) string {
 	text = strings.ReplaceAll(text, "\n", " ")
@@ -73,6 +104,10 @@ func cleanCell(text string) string {
 	text = strings.TrimSpace(text)
 
 	return text
+}
+
+func WrapCSVCell(cell string) string {
+	return "\"" + cleanCell(cell) + "\""
 }
 
 func xlGenerateSheetTitle(name string, number, rows int) (title string) {
